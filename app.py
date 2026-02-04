@@ -47,7 +47,7 @@ if not check_password():
 
 # 3. SECURELY LOAD API KEY
 try:
-client = OpenAI(api_key=st.secrets["MY_NEW_KEY"])
+    client = OpenAI(api_key=st.secrets["MY_NEW_KEY"])
 except:
     st.error("API Key missing! Add MY_NEW_KEY to Streamlit Secrets.")
     st.stop()
@@ -153,4 +153,5 @@ with tab2:
         st.dataframe(df)
     else:
         st.info("No assets scanned yet.")
+
 
