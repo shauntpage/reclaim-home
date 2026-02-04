@@ -113,28 +113,43 @@ if 'chat_history' not in st.session_state: st.session_state.chat_history = []
 tab1, tab2 = st.tabs(["📷 Scan & Fix", "📋 My Inventory"])
 
 with tab1:
-    img_file = st.file_uploader("Tap here to Snap Photo", type=['jpg', 'png', 'jpeg'])
+    # --- NEW CAMERA + UPLOAD LOGIC ---
+    input_method = st.radio("Choose Input:", ["Camera", "Upload"], horizontal=True)
     
-    if img_file and st.button("Identify Asset 🔍", type="primary"):
-        with st.spinner("Analyzing..."):
-            data = analyze_image(img_file)
-            
-            # --- DEBUG MODE: PRINT THE ERROR ---
-            if data.get('manufacturer') == "Error":
-                st.error(f"❌ AI Error: {data.get('details')}")
-            # -----------------------------------
-            
-            else:
-                st.session_state.current_asset = data
-                st.session_state.assets.append(data)
-                st.success("Identified!")
+    img_file = None
+    if input_method == "Camera":
+        img_file = st.camera_input("Snap a photo of the serial tag or receipt")
+    else:
+        img_file = st.file_uploader("Upload from gallery", type=['jpg', 'png', 'jpeg'])
+    
+    # Process the image automatically if captured via camera, or via button for upload
+    if img_file:
+        trigger_scan = False
+        if input_method == "Camera":
+            # On mobile, camera_input triggers a refresh immediately upon snap
+            trigger_scan = True
+        else:
+            trigger_scan = st.button("Identify Asset 🔍", type="primary")
+
+        if trigger_scan:
+            with st.spinner("Mischka Protocol: Analyzing..."):
+                data = analyze_image(img_file)
+                
+                if data.get('manufacturer') == "Error":
+                    st.error(f"❌ AI Error: {data.get('details')}")
+                else:
+                    st.session_state.current_asset = data
+                    st.session_state.assets.append(data)
+                    st.success("Identified!")
+
+    # --- REST OF YOUR DIAGNOSIS UI ---
     if st.session_state.current_asset:
         asset = st.session_state.current_asset
         st.divider()
         c1, c2 = st.columns(2)
         c1.metric("Make", asset.get('manufacturer'))
-        c1.metric("Model", asset.get('model_number'))
-        st.info(asset.get('maintenance_alert'))
+        c2.metric("Model", asset.get('model_number')) # Moved to c2 for better layout
+        st.info(f"💡 {asset.get('maintenance_alert')}")
 
         symptom = st.text_input("What is wrong?")
         if st.button("Start Diagnosis 🔧"):
