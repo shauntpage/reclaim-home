@@ -11,7 +11,6 @@ st.set_page_config(page_title="Reclaim Home Prototype", page_icon="🏠")
 def check_password():
     """Returns `True` if the user had the correct password."""
     
-    # Check if the password is set in the cloud secrets
     if "APP_PASSWORD" not in st.secrets:
         st.error("Setup Error: Please add APP_PASSWORD to your Streamlit Secrets.")
         return False
@@ -24,7 +23,6 @@ def check_password():
             st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
-        # First run, show input for password
         st.text_input(
             "Enter Password to Access Reclaim Home:", 
             type="password", 
@@ -33,7 +31,6 @@ def check_password():
         )
         return False
     elif not st.session_state["password_correct"]:
-        # Password incorrect, show input again
         st.text_input(
             "Enter Password to Access Reclaim Home:", 
             type="password", 
@@ -43,11 +40,10 @@ def check_password():
         st.error("😕 Password incorrect")
         return False
     else:
-        # Password correct
         return True
 
 if not check_password():
-    st.stop()  # STOP HERE if password is not entered
+    st.stop()
 
 # 3. SECURELY LOAD API KEY
 try:
@@ -56,7 +52,7 @@ except:
     st.error("API Key missing! Add OPENAI_API_KEY to Streamlit Secrets.")
     st.stop()
 
-# --- APP LOGIC STARTS HERE ---
+# --- APP LOGIC ---
 
 def encode_image(image_file):
     return base64.b64encode(image_file.getvalue()).decode('utf-8')
@@ -117,4 +113,41 @@ if 'chat_history' not in st.session_state: st.session_state.chat_history = []
 tab1, tab2 = st.tabs(["📷 Scan & Fix", "📋 My Inventory"])
 
 with tab1:
-    img_file = st.file_
+    # THIS IS THE LINE THAT WAS BROKEN
+    img_file = st.file_uploader("Tap here to Snap Photo", type=['jpg', 'png', 'jpeg'])
+    
+    if img_file and st.button("Identify Asset 🔍", type="primary"):
+        with st.spinner("Analyzing..."):
+            data = analyze_image(img_file)
+            if data.get('manufacturer') == "Error":
+                st.error("Could not identify. Try again.")
+            else:
+                st.session_state.current_asset = data
+                st.session_state.assets.append(data)
+                st.success("Identified!")
+
+    if st.session_state.current_asset:
+        asset = st.session_state.current_asset
+        st.divider()
+        c1, c2 = st.columns(2)
+        c1.metric("Make", asset.get('manufacturer'))
+        c1.metric("Model", asset.get('model_number'))
+        st.info(asset.get('maintenance_alert'))
+
+        symptom = st.text_input("What is wrong?")
+        if st.button("Start Diagnosis 🔧"):
+            with st.spinner("Checking manuals..."):
+                advice = get_diy_advice(asset, symptom)
+                msg = f"**Cause:** {advice.get('likely_cause')}\n\n**Safety:** {advice.get('safety_warning')}\n\n**Steps:**"
+                for s in advice.get('steps', []): msg += f"\n- {s}"
+                st.session_state.chat_history = [{"role": "assistant", "content": msg}]
+
+        for m in st.session_state.chat_history:
+            st.chat_message(m["role"]).write(m["content"])
+
+with tab2:
+    if st.session_state.assets:
+        df = pd.json_normalize(st.session_state.assets)
+        st.dataframe(df)
+    else:
+        st.info("No assets scanned yet.")
