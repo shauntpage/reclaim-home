@@ -70,7 +70,7 @@ def analyze_image(image_file):
     """
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": "You are the Reclaim Home AI. Return ONLY JSON."},
                 {"role": "user", "content": [
@@ -96,7 +96,7 @@ def get_diy_advice(model_info, symptom):
     - safety_warning (string)
     """
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-5-mini",
         messages=[{"role": "system", "content": "You are an expert handyman AI."},
                   {"role": "user", "content": prompt}],
         response_format={"type": "json_object"}
