@@ -57,32 +57,36 @@ except:
 def encode_image(image_file):
     return base64.b64encode(image_file.getvalue()).decode('utf-8')
 
-def analyze_image(image_file):
-    base64_image = encode_image(image_file)
+def analyze_image(img_file):
+    # Your OpenAI setup should already be here, just update the prompt and return
+    client = OpenAI(api_key=st.secrets["MY_NEW_KEY"]) 
+    
     prompt = """
-    Analyze this appliance image. Return a JSON object with:
-    - manufacturer (string)
-    - model_number (string)
-    - category (string)
-    - maintenance_alert (string, proactive tip)
-    If you cannot read a value, use "Unknown". 
-    If not an appliance, return "Error".
+    Identify the appliance in this image. You MUST return a JSON object with these keys:
+    {
+      "manufacturer": "Brand",
+      "model_number": "Model String",
+      "birth_year": 2018, 
+      "avg_lifespan": 15,
+      "health_score": 7,
+      "replace_vs_repair": "Detailed recommendation based on age vs typical life",
+      "modern_alternative": "A current efficient model name",
+      "maintenance_alert": "One pro-tip for this specific unit"
+    }
+    Note: If the exact birth year isn't visible, estimate it based on the design era.
     """
-    try:
-        response = client.chat.completions.create(
-            model="gpt-5-mini",
-            messages=[
-                {"role": "system", "content": "You are the Reclaim Home AI. Return ONLY JSON."},
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                ]}
-            ],
-            response_format={"type": "json_object"}
-        )
-        return json.loads(response.choices[0].message.content)
-    except Exception as e:
-        return {"manufacturer": "Error", "details": str(e)}
+
+    # Assuming you are using the vision model logic:
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(img_file.read()).decode()}"}}
+        ]}],
+        response_format={ "type": "json_object" }
+    )
+    import json
+    return json.loads(response.choices[0].message.content)
 
 def get_diy_advice(model_info, symptom):
     prompt = f"""
@@ -143,13 +147,42 @@ with tab1:
                     st.success("Identified!")
 
     # --- REST OF YOUR DIAGNOSIS UI ---
-    if st.session_state.current_asset:
+  if st.session_state.current_asset:
         asset = st.session_state.current_asset
         st.divider()
+        
+        # Identity Row
         c1, c2 = st.columns(2)
         c1.metric("Make", asset.get('manufacturer'))
-        c2.metric("Model", asset.get('model_number')) # Moved to c2 for better layout
-        st.info(f"💡 {asset.get('maintenance_alert')}")
+        c2.metric("Model", asset.get('model_number'))
+
+        # --- HEALTH & LIFECYCLE SECTION ---
+        st.subheader("🩺 Home Asset Health")
+        
+        # Math for the Metrics
+        current_year = 2026
+        birth = int(asset.get('birth_year', 2020))
+        lifespan = int(asset.get('avg_lifespan', 15))
+        age = current_year - birth
+        remaining = max(0, lifespan - age)
+        health_score = int(asset.get('health_score', 5))
+        health_percent = health_score / 10
+
+        # Visual Health Progress Bar
+        bar_color = "green" if health_score > 7 else "orange" if health_score > 4 else "red"
+        st.progress(health_percent, text=f"Overall Health: {health_score}/10")
+        
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("Age", f"{age} yrs")
+        col_b.metric("Avg. Life", f"{lifespan} yrs")
+        col_c.metric("Life Left", f"~{remaining} yrs")
+
+        # The Economic Advisor Box
+        with st.container(border=True):
+            st.write("#### 💡 Mischka Protocol Insight")
+            st.warning(f"**Decision:** {asset.get('replace_vs_repair')}")
+            st.info(f"**Modern Upgrade:** {asset.get('modern_alternative')}")
+            st.success(f"**Pro Tip:** {asset.get('maintenance_alert')}")
 
         symptom = st.text_input("What is wrong?")
         if st.button("Start Diagnosis 🔧"):
@@ -168,5 +201,6 @@ with tab2:
         st.dataframe(df)
     else:
         st.info("No assets scanned yet.")
+
 
 
