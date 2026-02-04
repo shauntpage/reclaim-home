@@ -113,19 +113,21 @@ if 'chat_history' not in st.session_state: st.session_state.chat_history = []
 tab1, tab2 = st.tabs(["📷 Scan & Fix", "📋 My Inventory"])
 
 with tab1:
-    # THIS IS THE LINE THAT WAS BROKEN
     img_file = st.file_uploader("Tap here to Snap Photo", type=['jpg', 'png', 'jpeg'])
     
     if img_file and st.button("Identify Asset 🔍", type="primary"):
         with st.spinner("Analyzing..."):
             data = analyze_image(img_file)
+            
+            # --- DEBUG MODE: PRINT THE ERROR ---
             if data.get('manufacturer') == "Error":
-                st.error("Could not identify. Try again.")
+                st.error(f"❌ AI Error: {data.get('details')}")
+            # -----------------------------------
+            
             else:
                 st.session_state.current_asset = data
                 st.session_state.assets.append(data)
                 st.success("Identified!")
-
     if st.session_state.current_asset:
         asset = st.session_state.current_asset
         st.divider()
