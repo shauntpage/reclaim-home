@@ -47,13 +47,7 @@ if not check_password():
 
 # 3. SECURELY LOAD API KEY
 try:
-    import os
-
-# FORCE OVERRIDE: This bypasses the Streamlit cache issues
-os.environ["OPENAI_API_KEY"] = "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"
-
-from openai import OpenAI
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 except:
     st.error("API Key missing! Add OPENAI_API_KEY to Streamlit Secrets.")
     st.stop()
@@ -158,5 +152,4 @@ with tab2:
         df = pd.json_normalize(st.session_state.assets)
         st.dataframe(df)
     else:
-
         st.info("No assets scanned yet.")
