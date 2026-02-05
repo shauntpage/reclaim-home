@@ -4,7 +4,7 @@ import json
 from openai import OpenAI
 
 # --- 1. APP CONFIG & "THUMB-FRIENDLY" CSS ---
-st.set_page_config(page_title="FIGJAM", page_icon="🏠", layout="centered")
+st.set_page_config(page_title="Reclaim", page_icon="🏠", layout="centered")
 
 st.markdown("""
     <style>
@@ -62,20 +62,21 @@ def analyze_universal(img_file):
 
 # --- 3. PAGE: HOME (THE MENU) ---
 if st.session_state.page == "home":
-    st.title("🏠 FIGJAM")
+    st.title("🏠 Reclaim")
+    st.caption("Ownership OS")
     
     # BIG BUTTON 1: The "Audit" (Home Buying / Inventory)
-    if st.button("📸 SCAN ASSET"):
+    if st.button("📸 SCAN"):
         st.session_state.page = "scan"; st.rerun()
         
-    # BIG BUTTON 2: The "Emergency" (Ad Hoc Fix)
-    if st.button("🆘 AD HOC FIX"):
+    # BIG BUTTON 2: THE LEGENDARY FIGJAM MODE
+    if st.button("⚡ FIGJAM"):
         st.session_state.current_asset = {"manufacturer": "Quick", "model_number": "Fix"}
-        st.session_state.chat_history = [{"role": "assistant", "content": "Mischka here. I'm listening. What's broken?"}]
+        st.session_state.chat_history = [{"role": "assistant", "content": "FIGJAM Protocol Active. What's broken?"}]
         st.session_state.page = "diagnose"; st.rerun()
 
     # BIG BUTTON 3: The "Equity" (View Ledger)
-    if st.button("📋 MY LEDGER"):
+    if st.button("📋 MY STUFF"):
         st.session_state.page = "ledger"; st.rerun()
 
     # The "Scoreboard"
@@ -133,7 +134,7 @@ elif st.session_state.page == "ledger":
                     st.progress(fraction, text=f"{rem} Years Left")
 
                 c1, c2 = st.columns(2)
-                if c1.button("🔧 FIX", key=f"f{i}"):
+                if c1.button("⚡ FIGJAM", key=f"f{i}"):
                     st.session_state.current_asset = item
                     st.session_state.chat_history = [{"role": "assistant", "content": f"Troubleshooting {item.get('manufacturer')}. What's wrong?"}]
                     st.session_state.page = "diagnose"; st.rerun()
@@ -156,7 +157,7 @@ elif st.session_state.page == "diagnose":
         with st.chat_message("assistant"):
             # Context injection
             asset = st.session_state.current_asset
-            ctx = f"You are Mischka. Asset: {asset.get('manufacturer')} {asset.get('model_number')}. Fault: {asset.get('diagnostics', {}).get('primary_fault_prediction')}."
+            ctx = f"You are Mischka (FIGJAM Mode). Asset: {asset.get('manufacturer')} {asset.get('model_number')}. Fault: {asset.get('diagnostics', {}).get('primary_fault_prediction')}."
             res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": ctx}] + st.session_state.chat_history)
             ans = res.choices[0].message.content
             st.write(ans)
