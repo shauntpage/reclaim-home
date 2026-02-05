@@ -1,93 +1,44 @@
 import streamlit as st
-from openai import OpenAI
+import pandas as pd
 import base64
 import json
-import pandas as pd
+from openai import OpenAI
 
-# 1. PAGE SETUP
-st.set_page_config(page_title="Reclaim Home Prototype", page_icon="🏠")
+# --- 1. SETTINGS & INITIALIZATION ---
+st.set_page_config(page_title="Reclaim | FIGJAM", page_icon="🏠", layout="centered")
 
-# 2. THE BOUNCER (PASSWORD CHECK)
-def check_password():
-    """Returns `True` if the user had the correct password."""
-    
-    if "APP_PASSWORD" not in st.secrets:
-        st.error("Setup Error: Please add APP_PASSWORD to your Streamlit Secrets.")
-        return False
+# Ensure all session state keys exist
+for key in ['assets', 'current_asset', 'show_diagnostics']:
+    if key not in st.session_state:
+        st.session_state[key] = [] if key == 'assets' else (None if key == 'current_asset' else False)
 
-    def password_entered():
-        if st.session_state["password"] == st.secrets["APP_PASSWORD"]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Clear the box
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        st.text_input(
-            "Enter Password to Access Reclaim Home:", 
-            type="password", 
-            on_change=password_entered, 
-            key="password"
-        )
-        return False
-    elif not st.session_state["password_correct"]:
-        st.text_input(
-            "Enter Password to Access Reclaim Home:", 
-            type="password", 
-            on_change=password_entered, 
-            key="password"
-        )
-        st.error("😕 Password incorrect")
-        return False
-    else:
-        return True
-
-if not check_password():
-    st.stop()
-
-# 3. SECURELY LOAD API KEY
-try:
-    client = OpenAI(api_key=st.secrets["MY_NEW_KEY"])
-except:
-    st.error("API Key missing! Add MY_NEW_KEY to Streamlit Secrets.")
-    st.stop()
-
-# --- APP LOGIC ---
-
-def encode_image(image_file):
-    return base64.b64encode(image_file.getvalue()).decode('utf-8')
-
+# --- 2. THE BRAIN (AI ANALYZER) ---
 def analyze_image(img_file):
     client = OpenAI(api_key=st.secrets["MY_NEW_KEY"]) 
-    
-    # Convert image to base64 for the model
     base64_image = base64.b64encode(img_file.getvalue()).decode('utf-8')
 
     prompt = """
-    Identify the item in this image. You MUST return a JSON object with these EXACT keys:
+    Identify the home asset or consumable in this image. 
+    Return a JSON object with these EXACT keys:
     {
       "manufacturer": "Brand",
       "model_number": "Model String",
-      "is_consumable": true,
-      "health_score": 7, 
+      "is_consumable": true/false,
+      "health_score": 1-10, 
       "birth_year": 2020,
       "avg_lifespan": 15,
       "estimated_value": "$500",
       "estimated_replacement_cost": "$1200",
-      "replace_vs_repair": "Recommendation based on age and condition",
-      "modern_alternative": "Name of replacement or upgrade",
-      "reorder_link": "https://www.google.com/search?q=replacement+part+model",
+      "replace_vs_repair": "Strategic advice",
+      "modern_alternative": "Name of replacement",
+      "reorder_link": "https://www.google.com/search?q=replacement+part",
       "diagnostics": {
-          "primary_fault_prediction": "Likely mechanical failure or end of life",
-          "diy_fix_steps": "Step 1: ... Step 2: ..."
+          "primary_fault_prediction": "Likely failure",
+          "diy_fix_steps": "1. Step one... 2. Step two..."
       }
     }
-    
-    CRITICAL INSTRUCTIONS:
-    1. If the item is a filter, battery, or supply, set 'is_consumable' to true.
-    2. 'health_score' is 1-10. For consumables, it represents % of life left (e.g., 7 = 70%).
-    3. For consumables, 'avg_lifespan' should be in MONTHS, not years.
-    4. Provide a direct search link in 'reorder_link' for the specific part.
+    Note: For consumables (filters, etc), health_score is % remaining (7=70%). 
+    Avg_lifespan for consumables is in MONTHS. Baseline year is 2026.
     """
 
     response = client.chat.completions.create(
@@ -103,179 +54,87 @@ def analyze_image(img_file):
         ],
         response_format={"type": "json_object"}
     )
-    
-    # Parse and return the JSON
-    return json.loads(response.choices[0].message.content)
-    # Assuming you are using the vision model logic:
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": [
-            {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(img_file.read()).decode()}"}}
-        ]}],
-        response_format={ "type": "json_object" }
-    )
-    import json
     return json.loads(response.choices[0].message.content)
 
-def get_diy_advice(model_info, symptom):
-    prompt = f"""
-    The user has a {model_info.get('manufacturer')} {model_info.get('category')} 
-    Model: {model_info.get('model_number')}.
-    Symptom: "{symptom}".
+# --- 3. THE SIDEBAR (COMMAND CENTER) ---
+with st.sidebar:
+    st.title("🏠 FIGJAM")
+    st.subheader("Mischka Scan")
     
-    Return JSON with:
-    - likely_cause (string)
-    - steps (array of strings)
-    - safety_warning (string)
-    """
-    response = client.chat.completions.create(
-        model="gpt-5-mini",
-        messages=[{"role": "system", "content": "You are an expert handyman AI."},
-                  {"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}
-    )
-    return json.loads(response.choices[0].message.content)
+    input_method = st.radio("Input Source:", ["Camera", "Upload"], horizontal=True)
+    img_file = st.camera_input("Scan Label") if input_method == "Camera" else st.file_uploader("Upload Image", type=['jpg', 'png', 'jpeg'])
 
-# --- UI LAYOUT ---
-st.title("Reclaim 🏠")
-
-if 'assets' not in st.session_state: st.session_state.assets = []
-if 'current_asset' not in st.session_state: st.session_state.current_asset = None
-if 'chat_history' not in st.session_state: st.session_state.chat_history = []
-
-# --- TAB DEFINITIONS ---
-tab1, tab2 = st.tabs(["🔍 Scan Asset", "📋 My Inventory"])
-
-# --- INITIALIZATION (Ensure this is near the top of your script) ---
-for key in ['assets', 'current_asset', 'show_diagnostics']:
-    if key not in st.session_state:
-        st.session_state[key] = [] if key == 'assets' else (None if key == 'current_asset' else False)
-
-# --- TAB DEFINITIONS ---
-tab1, tab2 = st.tabs(["🔍 Scan Asset", "📋 My Ledger"])
-
-with tab1:
-    st.subheader("Mischka Protocol: Active Scan")
-    
-    # 1. THE TOGGLE (Cleaning up the UI)
-    input_method = st.radio("Choose Input Method:", ["Camera", "Upload Photo"], horizontal=True)
-    
-    img_file = None
-    if input_method == "Camera":
-        # Only shows the camera interface
-        img_file = st.camera_input("Point at the manufacturer label")
-    else:
-        # Only shows the file uploader
-        img_file = st.file_uploader("Select a photo from your gallery", type=['jpg', 'png', 'jpeg'])
-
-    # 2. THE SCANNING LOGIC
     if img_file:
-        with st.spinner("Mischka is identifying lifecycle and supply data..."):
-            asset_data = analyze_image(img_file)
-            st.session_state.current_asset = asset_data
+        with st.spinner("Analyzing Asset..."):
+            st.session_state.current_asset = analyze_image(img_file)
+            st.toast("Scan Success!", icon="🚀")
 
-    if st.session_state.current_asset:
-        asset = st.session_state.current_asset
-        st.divider()
-        
-        # Identity Header
-        st.header(f"📦 {asset.get('manufacturer')} {asset.get('model_number')}")
-        
-        # --- DUAL-MODE DISPLAY (Consumable vs. Appliance) ---
-        is_consumable = asset.get('is_consumable', False)
-        score = int(asset.get('health_score', 5))
-        
-        if is_consumable:
-            st.subheader("⛽ Supply Level")
-            st.progress(score / 10.0, text=f"{score*10}% Remaining")
-            st.write(f"**Replacement Cycle:** Every {asset.get('avg_lifespan')} months")
-        else:
-            st.subheader("🩺 Asset Health")
-            # Baseline Year is 2026
-            age = 2026 - int(asset.get('birth_year', 2020))
-            life = int(asset.get('avg_lifespan', 15))
-            remaining = max(0, life - age)
-            # Progress bar shows % of life left
-            life_pct = max(0.0, min(1.0, remaining / life))
-            st.progress(life_pct, text=f"{remaining} years of service left")
+    st.divider()
+    if st.button("🗑️ Reset Ledger", use_container_width=True):
+        st.session_state.assets = []
+        st.session_state.current_asset = None
+        st.rerun()
 
-        # --- COMMAND CENTER ---
-        st.write("### ⚡ Actions")
-        c_inv, c_diag = st.columns(2)
+# --- 4. MAIN UI: NEW SCAN REVIEW ---
+if st.session_state.current_asset:
+    asset = st.session_state.current_asset
+    with st.container(border=True):
+        st.subheader(f"Found: {asset.get('manufacturer')} {asset.get('model_number')}")
         
-        if c_inv.button("📥 Add to Ledger", use_container_width=True):
-            if asset not in st.session_state.assets:
-                st.session_state.assets.append(asset)
-                st.toast("Saved to Home Ledger!", icon="✅")
-            else:
-                st.toast("Already in Ledger", icon="ℹ️")
-
-        if c_diag.button("🔧 Deep Diagnose", use_container_width=True):
-            st.session_state.show_diagnostics = True
+        c1, c2 = st.columns(2)
+        if c1.button("📥 Add to Ledger", use_container_width=True, type="primary"):
+            st.session_state.assets.append(asset)
+            st.session_state.current_asset = None
+            st.rerun()
+        
+        if c2.button("🔧 Diagnose", use_container_width=True):
+            st.session_state.show_diagnostics = not st.session_state.get('show_diagnostics', False)
 
         if st.session_state.get('show_diagnostics', False):
-            with st.container(border=True):
-                st.subheader("👨‍🔧 Master Tech Report")
-                diag = asset.get('diagnostics', {})
-                st.error(f"**Likely Fault:** {diag.get('primary_fault_prediction', 'N/A')}")
-                st.info(f"**Mischka's Repair Path:** \n\n {diag.get('diy_fix_steps', 'Model-specific fix not found.')}")
-                if st.button("Close Report"):
-                    st.session_state.show_diagnostics = False
-                    st.rerun()
+            diag = asset.get('diagnostics', {})
+            st.error(f"**Predicted Failure:** {diag.get('primary_fault_prediction')}")
+            st.info(f"**DIY Repair Path:** {diag.get('diy_fix_steps')}")
 
-with tab2:
-    st.subheader("📋 Home Health Ledger")
-    
-    if st.session_state.assets:
-        # Sort by urgency (Lowest score = Red = Top of list)
-        sorted_assets = sorted(st.session_state.assets, key=lambda x: int(x.get('health_score', 5)))
+# --- 5. MAIN UI: HOME HEALTH LEDGER ---
+st.header("📋 Home Health Ledger")
+
+if not st.session_state.assets:
+    st.info("No assets tracked. Scan a manufacturer label to begin your home audit.")
+else:
+    # Portfolio Financials
+    total_val = sum([int(a.get('estimated_value', '$0').replace('$','').replace(',','')) for a in st.session_state.assets])
+    st.metric("Total Portfolio Value", f"${total_val:,}")
+
+    # Triage Sorting
+    sorted_assets = sorted(st.session_state.assets, key=lambda x: int(x.get('health_score', 5)))
+
+    for item in sorted_assets:
+        score = int(item.get('health_score', 5))
+        is_cons = item.get('is_consumable', False)
         
-        st.write("Review your home's prioritized risk map below.")
+        if score <= 4: status, icon = "CRITICAL", "🔴"
+        elif score <= 7: status, icon = "WATCH", "🟡"
+        else: status, icon = "STABLE", "🟢"
         
-        for item in sorted_assets:
-            s = int(item.get('health_score', 5))
-            is_cons = item.get('is_consumable', False)
+        with st.expander(f"{icon} {status} | {item.get('manufacturer')} {item.get('model_number')}"):
+            m1, m2 = st.columns(2)
+            m1.metric("Current Value", item.get('estimated_value', '$--'))
+            m2.metric("Repl. Cost", item.get('estimated_replacement_cost', '$--'))
             
-            # Triage Branding
-            if s <= 4: status = "🔴 CRITICAL"
-            elif s <= 7: status = "🟡 WATCH"
-            else: status = "🟢 STABLE"
+            if is_cons:
+                st.write(f"**Supply Level:** {score*10}%")
+                st.progress(score/10.0)
+            else:
+                age = 2026 - int(item.get('birth_year', 2020))
+                life = int(item.get('avg_lifespan', 15))
+                rem = max(0, life - age)
+                st.write(f"**Service Life:** {rem} years left")
+                st.progress(max(0.0, min(1.0, rem/life)))
             
-            # THE DRILL-DOWN CARD
-            with st.expander(f"{status} | {item.get('manufacturer')} {item.get('model_number')}"):
-                c1, c2 = st.columns(2)
-                c1.metric("Current Value", item.get('estimated_value', '$--'))
-                c2.metric("Repl. Cost", item.get('estimated_replacement_cost', '$--'))
-                
-                st.divider()
-                
-                # Dynamic Logic for Ledger Details
-                if is_cons:
-                    st.write(f"**Supply:** {s*10}% Remaining")
-                    st.progress(s/10.0)
-                else:
-                    age = 2026 - int(item.get('birth_year', 2020))
-                    life = int(item.get('avg_lifespan', 15))
-                    rem = max(0, life - age)
-                    st.write(f"**Service Life:** {rem} years left (Age: {age} yrs)")
-                    st.progress(max(0.0, min(1.0, rem / life)))
-                
-                # THE MONETIZATION ENGINE (Reorder Button)
-                reorder_url = item.get('reorder_link', 'https://www.google.com/search?q=' + item.get('model_number'))
-                st.link_button(f"🛒 Quick Reorder Replacement", reorder_url, use_container_width=True, type="primary")
-                
-                st.info(f"**Mischka's Take:** {item.get('replace_vs_repair', 'N/A')}")
+            st.link_button(f"🛒 Order Replacement", item.get('reorder_link', '#'), use_container_width=True)
+            st.caption(f"Strategy: {item.get('replace_vs_repair')}")
 
-        if st.button("Purge Session Data", use_container_width=True):
-            st.session_state.assets = []
-            st.rerun()
-    else:
-        st.info("Your ledger is empty. Head to 'Scan Asset' to begin your home audit.")
-
-# --- SIDEBAR / FOOTER ---
+# --- 6. FOOTER ---
 st.sidebar.divider()
-st.sidebar.caption("FIGJAM Alpha | Mischka Protocol v2.5")
-st.sidebar.caption("Prioritizing Home Equity through Data.")
-
-
+st.sidebar.caption("FIGJAM v2.5 | 'Mischka' AI Engine")
+st.sidebar.caption("San Leandro, CA Demo")
