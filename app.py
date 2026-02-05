@@ -98,7 +98,7 @@ if st.session_state.page == "home":
     st.title("🏠 Reclaim")
     st.caption("Your AI Home Maintenance Assistant")
     
-    if st.button("📸 SCAN "):
+    if st.button("📸  SCAN "):
         st.session_state.page = "scan"; st.rerun()
         
     if st.button("⚡ FIGJAM "):
@@ -181,4 +181,5 @@ elif st.session_state.page == "diagnose":
             ans = res.choices[0].message.content
             st.write(ans)
             st.session_state.chat_history.append({"role": "assistant", "content": ans})
+
 
