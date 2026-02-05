@@ -96,17 +96,17 @@ def analyze_universal(img_file):
 # --- 5. PAGE: HOME (THE MENU) ---
 if st.session_state.page == "home":
     st.title("🏠 Reclaim")
-    st.caption("Ownership OS")
+    st.caption("Your AI Home Maintenance Assistant")
     
-    if st.button("📸 SCAN ASSET"):
+    if st.button("📸 SCAN "):
         st.session_state.page = "scan"; st.rerun()
         
-    if st.button("⚡ FIGJAM"):
+    if st.button("⚡ FIGJAM "):
         st.session_state.current_asset = {"manufacturer": "Quick", "model_number": "Fix"}
         st.session_state.chat_history = [{"role": "assistant", "content": "FIGJAM Protocol Active. What's broken?"}]
         st.session_state.page = "diagnose"; st.rerun()
 
-    if st.button("📋 MY LEDGER"):
+    if st.button("📋 LEDGER"):
         st.session_state.page = "ledger"; st.rerun()
 
     if st.session_state.assets:
@@ -181,3 +181,4 @@ elif st.session_state.page == "diagnose":
             ans = res.choices[0].message.content
             st.write(ans)
             st.session_state.chat_history.append({"role": "assistant", "content": ans})
+
