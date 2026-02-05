@@ -158,12 +158,20 @@ tab1, tab2 = st.tabs(["🔍 Scan Asset", "📋 My Ledger"])
 with tab1:
     st.subheader("Mischka Protocol: Active Scan")
     
-    input_method = st.radio("Select Input:", ["Camera", "Upload File"], horizontal=True)
-    img_file = st.camera_input("Scan Label") if input_method == "Camera" else st.file_uploader("Upload Photo", type=['jpg', 'png', 'jpeg'])
+    # 1. THE TOGGLE (Cleaning up the UI)
+    input_method = st.radio("Choose Input Method:", ["Camera", "Upload Photo"], horizontal=True)
+    
+    img_file = None
+    if input_method == "Camera":
+        # Only shows the camera interface
+        img_file = st.camera_input("Point at the manufacturer label")
+    else:
+        # Only shows the file uploader
+        img_file = st.file_uploader("Select a photo from your gallery", type=['jpg', 'png', 'jpeg'])
 
+    # 2. THE SCANNING LOGIC
     if img_file:
         with st.spinner("Mischka is identifying lifecycle and supply data..."):
-            # This must call your analyze_image function which returns the JSON
             asset_data = analyze_image(img_file)
             st.session_state.current_asset = asset_data
 
@@ -269,4 +277,5 @@ with tab2:
 st.sidebar.divider()
 st.sidebar.caption("FIGJAM Alpha | Mischka Protocol v2.5")
 st.sidebar.caption("Prioritizing Home Equity through Data.")
+
 
