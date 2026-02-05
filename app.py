@@ -147,42 +147,42 @@ with tab1:
                     st.success("Identified!")
 
     # --- REST OF YOUR DIAGNOSIS UI ---
-  if st.session_state.current_asset:
-        asset = st.session_state.current_asset
-        st.divider()
+          if st.session_state.current_asset:
+                asset = st.session_state.current_asset
+                st.divider()
+                
+                # Identity Row
+                c1, c2 = st.columns(2)
+                c1.metric("Make", asset.get('manufacturer'))
+                c2.metric("Model", asset.get('model_number'))
         
-        # Identity Row
-        c1, c2 = st.columns(2)
-        c1.metric("Make", asset.get('manufacturer'))
-        c2.metric("Model", asset.get('model_number'))
-
-        # --- HEALTH & LIFECYCLE SECTION ---
-        st.subheader("🩺 Home Asset Health")
+                # --- HEALTH & LIFECYCLE SECTION ---
+                st.subheader("🩺 Home Asset Health")
+                
+                # Math for the Metrics
+                current_year = 2026
+                birth = int(asset.get('birth_year', 2020))
+                lifespan = int(asset.get('avg_lifespan', 15))
+                age = current_year - birth
+                remaining = max(0, lifespan - age)
+                health_score = int(asset.get('health_score', 5))
+                health_percent = health_score / 10
         
-        # Math for the Metrics
-        current_year = 2026
-        birth = int(asset.get('birth_year', 2020))
-        lifespan = int(asset.get('avg_lifespan', 15))
-        age = current_year - birth
-        remaining = max(0, lifespan - age)
-        health_score = int(asset.get('health_score', 5))
-        health_percent = health_score / 10
-
-        # Visual Health Progress Bar
-        bar_color = "green" if health_score > 7 else "orange" if health_score > 4 else "red"
-        st.progress(health_percent, text=f"Overall Health: {health_score}/10")
+                # Visual Health Progress Bar
+                bar_color = "green" if health_score > 7 else "orange" if health_score > 4 else "red"
+                st.progress(health_percent, text=f"Overall Health: {health_score}/10")
+                
+                col_a, col_b, col_c = st.columns(3)
+                col_a.metric("Age", f"{age} yrs")
+                col_b.metric("Avg. Life", f"{lifespan} yrs")
+                col_c.metric("Life Left", f"~{remaining} yrs")
         
-        col_a, col_b, col_c = st.columns(3)
-        col_a.metric("Age", f"{age} yrs")
-        col_b.metric("Avg. Life", f"{lifespan} yrs")
-        col_c.metric("Life Left", f"~{remaining} yrs")
-
-        # The Economic Advisor Box
-        with st.container(border=True):
-            st.write("#### 💡 Mischka Protocol Insight")
-            st.warning(f"**Decision:** {asset.get('replace_vs_repair')}")
-            st.info(f"**Modern Upgrade:** {asset.get('modern_alternative')}")
-            st.success(f"**Pro Tip:** {asset.get('maintenance_alert')}")
+                # The Economic Advisor Box
+                with st.container(border=True):
+                    st.write("#### 💡 Mischka Protocol Insight")
+                    st.warning(f"**Decision:** {asset.get('replace_vs_repair')}")
+                    st.info(f"**Modern Upgrade:** {asset.get('modern_alternative')}")
+                    st.success(f"**Pro Tip:** {asset.get('maintenance_alert')}")
 
         symptom = st.text_input("What is wrong?")
         if st.button("Start Diagnosis 🔧"):
@@ -201,6 +201,7 @@ with tab2:
         st.dataframe(df)
     else:
         st.info("No assets scanned yet.")
+
 
 
 
