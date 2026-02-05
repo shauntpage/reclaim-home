@@ -173,15 +173,81 @@ with tab1:
             st.info(f"**Upgrade:** {asset.get('modern_alternative')}")
 
 with tab2:
-    st.subheader("Your Personal Property Ledger")
+    st.subheader("📋 Home Health Ledger")
+    
     if st.session_state.assets:
-        # Display the collected items in a clean table
-        df = pd.DataFrame(st.session_state.assets)
-        st.dataframe(df[['manufacturer', 'model_number', 'birth_year', 'health_score']])
+        # 1. Sort the assets so Red (Critical) always floats to the top
+        # This forces the user to confront the most 'at-risk' items first
+        sorted_assets = sorted(st.session_state.assets, key=lambda x: x.get('health_score', 5))
         
-        if st.button("Clear Session Vault"):
+        st.write("Review your asset health below. Items are ranked by urgency.")
+        st.divider()
+
+       for item in sorted_assets:
+            score = item.get('health_score', 5)
+            
+            # 1. Determine Status Branding
+            if score <= 4:
+                status, label_color = "🔴 CRITICAL", "red"
+            elif score <= 7:
+                status, label_color = "🟡 WATCH", "orange"
+            else:
+                status, label_color = "🟢 STABLE", "green"
+            
+            # 2. The Interactive Card (Expander)
+            with st.expander(f"{status} | {item.get('manufacturer')} {item.get('model_number')}"):
+                
+                # Top Row: The Financial Reality
+                c1, c2 = st.columns(2)
+                c1.metric("Est. Value", item.get('estimated_value', '$--'))
+                c2.metric("Replacement", item.get('estimated_replacement_cost', '$--'))
+                
+                st.divider()
+
+                # Middle Row: The Life Clock
+                st.write("#### ⏳ Lifecycle Analysis")
+                age = 2026 - int(item.get('birth_year', 2020))
+                life = int(item.get('avg_lifespan', 15))
+                remaining = max(0, life - age)
+                
+                st.progress(max(0.0, min(1.0, remaining / life)), text=f"{remaining} years of service left")
+                
+                col_a, col_b = st.columns(2)
+                col_a.write(f"**Age:** {age} years")
+                col_b.write(f"**Avg. Lifespan:** {life} years")
+
+                # Bottom Row: The "Mischka" Insight
+                with st.container(border=True):
+                    st.write("#### 💡 Strategic Advice")
+                    st.info(f"**Action:** {item.get('replace_vs_repair')}")
+                    st.warning(f"**Likely Fault:** {item.get('diagnostics', {}).get('primary_fault_prediction')}")
+                    st.success(f"**Modern Upgrade:** {item.get('modern_alternative')}")
+            
+            # 3. Draw the Status Card
+            with st.container(border=True):
+                c1, c2 = st.columns([2, 1])
+                c1.write(f"### {item.get('manufacturer')} {item.get('model_number')}")
+                c2.write(f"**{status}**")
+                
+                # Useful Life Progress Bar
+                age = 2026 - int(item.get('birth_year', 2020))
+                life = int(item.get('avg_lifespan', 15))
+                remaining = max(0, life - age)
+                
+                # Calculate the percentage of life remaining for the bar
+                life_pct = max(0.0, min(1.0, remaining / life))
+                
+                st.progress(life_pct, text=f"{remaining} years of estimated service remaining")
+                
+                # Mini-metrics for the card
+                m1, m2, m3 = st.columns(3)
+                m1.caption(f"Age: {age} yrs")
+                m2.caption(f"Total Life: {life} yrs")
+                m3.caption(f"Score: {score}/10")
+
+        if st.button("Clear Session Ledger", use_container_width=True):
             st.session_state.assets = []
             st.session_state.current_asset = None
             st.rerun()
     else:
-        st.info("Your vault is empty. Scan an item to begin your ledger.")
+        st.info("Your ledger is currently empty. Head over to the 'Scan' tab to audit your first appliance.")
