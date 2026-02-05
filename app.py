@@ -66,17 +66,17 @@ if st.session_state.page == "home":
     st.caption("Ownership OS")
     
     # BIG BUTTON 1: The "Audit" (Home Buying / Inventory)
-    if st.button("📋  SCAN "):
+    if st.button(" 📋  SCAN "):
         st.session_state.page = "scan"; st.rerun()
         
     # BIG BUTTON 2: THE LEGENDARY FIGJAM MODE
-    if st.button("❓ FIGJAM"):
+    if st.button(" ❓ FIGJAM"):
         st.session_state.current_asset = {"manufacturer": "Quick", "model_number": "Fix"}
         st.session_state.chat_history = [{"role": "assistant", "content": "FIGJAM Protocol Active. What's broken?"}]
         st.session_state.page = "diagnose"; st.rerun()
 
     # BIG BUTTON 3: The "Equity" (View Ledger)
-    if st.button("📋  HOME "):
+    if st.button(" 📋  HOME "):
         st.session_state.page = "ledger"; st.rerun()
 
     # The "Scoreboard"
@@ -162,4 +162,5 @@ elif st.session_state.page == "diagnose":
             ans = res.choices[0].message.content
             st.write(ans)
             st.session_state.chat_history.append({"role": "assistant", "content": ans})
+
 
