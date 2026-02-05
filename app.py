@@ -103,7 +103,61 @@ elif st.session_state.page == "ledger":
     if not st.session_state.assets:
         st.info("Ledger empty.")
     else:
-        # Sort by urgency
-        sorted_assets = sorted(st.session_state.assets, key=lambda x: int(x.get('health_score', 5)))
+        # Helper function to prevent sorting syntax errors
+        def get_score(a):
+            return int(a.get('health_score', 5))
+            
+        # Clean sort
+        sorted_assets = sorted(st.session_state.assets, key=get_score)
         
-        for i, item in enumerate(
+        for i, item in enumerate(sorted_assets):
+            score = int(item.get('health_score', 5))
+            icon = "🔴" if score <= 4 else ("🟡" if score <= 7 else "🟢")
+            
+            with st.expander(f"{icon} {item.get('manufacturer')} {item.get('model_number')}"):
+                
+                # The "Gauge" Logic
+                if item.get('is_consumable'):
+                    st.progress(score/10.0, text=f"Supply: {score*10}%")
+                else:
+                    # Broken down math to prevent bracket errors
+                    birth_year = int(item.get('birth_year', 2020))
+                    lifespan = int(item.get('avg_lifespan', 15))
+                    age = 2026 - birth_year
+                    rem = max(0, lifespan - age)
+                    
+                    fraction = 0.0
+                    if lifespan > 0:
+                        fraction = max(0.0, min(1.0, rem / lifespan))
+                        
+                    st.progress(fraction, text=f"{rem} Years Left")
+
+                c1, c2 = st.columns(2)
+                if c1.button("🔧 FIX", key=f"f{i}"):
+                    st.session_state.current_asset = item
+                    st.session_state.chat_history = [{"role": "assistant", "content": f"Troubleshooting {item.get('manufacturer')}. What's wrong?"}]
+                    st.session_state.page = "diagnose"; st.rerun()
+                c2.link_button("🛒 BUY", item.get('reorder_link', '#'))
+
+    if st.button("🗑️ RESET APP", type="secondary"):
+        st.session_state.assets = []; st.rerun()
+
+# --- 6. PAGE: DIAGNOSE (CHAT) ---
+elif st.session_state.page == "diagnose":
+    if st.button("⬅️ DONE"): st.session_state.chat_history = []; st.session_state.page = "home"; st.rerun()
+    
+    # Chat Interface
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]): st.write(msg["content"])
+
+    if prompt := st.chat_input("Type symptoms..."):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        with st.chat_message("user"): st.write(prompt)
+        with st.chat_message("assistant"):
+            # Context injection
+            asset = st.session_state.current_asset
+            ctx = f"You are Mischka. Asset: {asset.get('manufacturer')} {asset.get('model_number')}. Fault: {asset.get('diagnostics', {}).get('primary_fault_prediction')}."
+            res = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": ctx}] + st.session_state.chat_history)
+            ans = res.choices[0].message.content
+            st.write(ans)
+            st.session_state.chat_history.append({"role": "assistant", "content": ans})
