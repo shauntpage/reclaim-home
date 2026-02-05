@@ -171,7 +171,38 @@ with tab1:
             st.write("#### 💡 Economic Advice")
             st.warning(f"**Decision:** {asset.get('replace_vs_repair')}")
             st.info(f"**Upgrade:** {asset.get('modern_alternative')}")
+# --- COMMAND CENTER ---
+        st.write("### ⚡ Actions")
+        col_inv, col_diag = st.columns(2)
 
+        # 1. ADD TO INVENTORY BUTTON
+        if col_inv.button("📥 Add to Inventory", use_container_width=True):
+            # Check if it's already in the list to avoid duplicates
+            if asset not in st.session_state.assets:
+                st.session_state.assets.append(asset)
+                st.toast("Saved to Home Ledger! Check Tab 2.", icon="✅")
+            else:
+                st.warning("This asset is already in your ledger.")
+
+        # 2. DEEP DIAGNOSE BUTTON
+        if col_diag.button("🔧 Deep Diagnose", use_container_width=True):
+            st.session_state.show_diagnostics = True
+
+        # --- THE MECHANICAL OVERLAY ---
+        if st.session_state.get('show_diagnostics', False):
+            with st.container(border=True):
+                st.subheader("👨‍🔧 Mischka Technical Report")
+                diag = asset.get('diagnostics', {})
+                
+                st.error(f"**Predicted Failure:** {diag.get('primary_fault_prediction', 'No known common faults.')}")
+                
+                # Provides the "How-To" for the DIYer
+                steps = diag.get('diy_fix_steps', "Model-specific fix not found. Check manufacturer site.")
+                st.info(f"**Mischka's Repair Path:** \n\n {steps}")
+                
+                if st.button("Close Report"):
+                    st.session_state.show_diagnostics = False
+                    st.rerun()
 with tab2:
     st.subheader("📋 Home Health Ledger")
     
@@ -251,3 +282,4 @@ with tab2:
 st.sidebar.divider()
 st.sidebar.caption(f"FIGJAM Alpha | Mischka Protocol v2.1")
 st.sidebar.caption("Pillars: Rights, Money, Community")
+
