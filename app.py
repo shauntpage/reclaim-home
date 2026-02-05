@@ -117,169 +117,123 @@ if 'chat_history' not in st.session_state: st.session_state.chat_history = []
 # --- TAB DEFINITIONS ---
 tab1, tab2 = st.tabs(["🔍 Scan Asset", "📋 My Inventory"])
 
+# --- INITIALIZATION (Ensure this is near the top of your script) ---
+for key in ['assets', 'current_asset', 'show_diagnostics']:
+    if key not in st.session_state:
+        st.session_state[key] = [] if key == 'assets' else (None if key == 'current_asset' else False)
+
+# --- TAB DEFINITIONS ---
+tab1, tab2 = st.tabs(["🔍 Scan Asset", "📋 My Ledger"])
+
 with tab1:
     st.subheader("Mischka Protocol: Active Scan")
     
-    # User selects how to provide the image
     input_method = st.radio("Select Input:", ["Camera", "Upload File"], horizontal=True)
-    
-    if input_method == "Camera":
-        img_file = st.camera_input("Scan Appliance Label")
-    else:
-        img_file = st.file_uploader("Upload Label Photo", type=['jpg', 'png', 'jpeg'])
+    img_file = st.camera_input("Scan Label") if input_method == "Camera" else st.file_uploader("Upload Photo", type=['jpg', 'png', 'jpeg'])
 
-    # Logic to process the image
     if img_file:
-        with st.spinner("Mischka is identifying lifecycle data..."):
-            # This calls the upgraded function we built
+        with st.spinner("Mischka is identifying lifecycle and supply data..."):
+            # This must call your analyze_image function which returns the JSON
             asset_data = analyze_image(img_file)
             st.session_state.current_asset = asset_data
-            
-            # Save to temporary session inventory
-            if asset_data not in st.session_state.assets:
-                st.session_state.assets.append(asset_data)
 
-    # --- DISPLAY RESULTS (Aligned inside Tab 1) ---
     if st.session_state.current_asset:
         asset = st.session_state.current_asset
         st.divider()
         
-        # Identity Row
-        c1, c2 = st.columns(2)
-        c1.metric("Make", asset.get('manufacturer'))
-        c2.metric("Model", asset.get('model_number'))
+        # Identity Header
+        st.header(f"📦 {asset.get('manufacturer')} {asset.get('model_number')}")
+        
+        # --- DUAL-MODE DISPLAY (Consumable vs. Appliance) ---
+        is_consumable = asset.get('is_consumable', False)
+        score = int(asset.get('health_score', 5))
+        
+        if is_consumable:
+            st.subheader("⛽ Supply Level")
+            st.progress(score / 10.0, text=f"{score*10}% Remaining")
+            st.write(f"**Replacement Cycle:** Every {asset.get('avg_lifespan')} months")
+        else:
+            st.subheader("🩺 Asset Health")
+            # Baseline Year is 2026
+            age = 2026 - int(asset.get('birth_year', 2020))
+            life = int(asset.get('avg_lifespan', 15))
+            remaining = max(0, life - age)
+            # Progress bar shows % of life left
+            life_pct = max(0.0, min(1.0, remaining / life))
+            st.progress(life_pct, text=f"{remaining} years of service left")
 
-        # Lifecycle Health Section
-        st.write("### 🩺 Home Asset Health")
-        
-        current_year = 2026
-        birth = int(asset.get('birth_year', 2020))
-        lifespan = int(asset.get('avg_lifespan', 15))
-        age = current_year - birth
-        remaining = max(0, lifespan - age)
-        health_score = int(asset.get('health_score', 5))
-        
-        # Visual Progress
-        st.progress(health_score / 10, text=f"Health Status: {health_score}/10")
-        
-        col_a, col_b, col_c = st.columns(3)
-        col_a.metric("Age", f"{age} yrs")
-        col_b.metric("Avg. Life", f"{lifespan} yrs")
-        col_c.metric("Life Left", f"~{remaining} yrs")
-
-        with st.container(border=True):
-            st.write("#### 💡 Economic Advice")
-            st.warning(f"**Decision:** {asset.get('replace_vs_repair')}")
-            st.info(f"**Upgrade:** {asset.get('modern_alternative')}")
-# --- COMMAND CENTER ---
+        # --- COMMAND CENTER ---
         st.write("### ⚡ Actions")
-        col_inv, col_diag = st.columns(2)
-
-        # 1. ADD TO INVENTORY BUTTON
-        if col_inv.button("📥 Add to Inventory", use_container_width=True):
-            # Check if it's already in the list to avoid duplicates
+        c_inv, c_diag = st.columns(2)
+        
+        if c_inv.button("📥 Add to Ledger", use_container_width=True):
             if asset not in st.session_state.assets:
                 st.session_state.assets.append(asset)
-                st.toast("Saved to Home Ledger! Check Tab 2.", icon="✅")
+                st.toast("Saved to Home Ledger!", icon="✅")
             else:
-                st.warning("This asset is already in your ledger.")
+                st.toast("Already in Ledger", icon="ℹ️")
 
-        # 2. DEEP DIAGNOSE BUTTON
-        if col_diag.button("🔧 Deep Diagnose", use_container_width=True):
+        if c_diag.button("🔧 Deep Diagnose", use_container_width=True):
             st.session_state.show_diagnostics = True
 
-        # --- THE MECHANICAL OVERLAY ---
         if st.session_state.get('show_diagnostics', False):
             with st.container(border=True):
-                st.subheader("👨‍🔧 Mischka Technical Report")
+                st.subheader("👨‍🔧 Master Tech Report")
                 diag = asset.get('diagnostics', {})
-                
-                st.error(f"**Predicted Failure:** {diag.get('primary_fault_prediction', 'No known common faults.')}")
-                
-                # Provides the "How-To" for the DIYer
-                steps = diag.get('diy_fix_steps', "Model-specific fix not found. Check manufacturer site.")
-                st.info(f"**Mischka's Repair Path:** \n\n {steps}")
-                
+                st.error(f"**Likely Fault:** {diag.get('primary_fault_prediction', 'N/A')}")
+                st.info(f"**Mischka's Repair Path:** \n\n {diag.get('diy_fix_steps', 'Model-specific fix not found.')}")
                 if st.button("Close Report"):
                     st.session_state.show_diagnostics = False
                     st.rerun()
+
 with tab2:
     st.subheader("📋 Home Health Ledger")
     
     if st.session_state.assets:
-        # 1. SORTING LOGIC: Red (Critical) items jump to the top automatically
-        # Uses the health_score (1-10) to sort. Low scores come first.
-        sorted_assets = sorted(st.session_state.assets, key=lambda x: x.get('health_score', 5))
+        # Sort by urgency (Lowest score = Red = Top of list)
+        sorted_assets = sorted(st.session_state.assets, key=lambda x: int(x.get('health_score', 5)))
         
-        st.write("Your items are ranked by urgency. Tap an item for the full audit.")
-        st.divider()
-
+        st.write("Review your home's prioritized risk map below.")
+        
         for item in sorted_assets:
-            # Extract data with safety defaults to prevent crashes
-            score = int(item.get('health_score', 5))
-            make = item.get('manufacturer', 'Unknown')
-            model = item.get('model_number', 'Unknown')
-            val = item.get('estimated_value', '$--')
-            repl = item.get('estimated_replacement_cost', '$--')
+            s = int(item.get('health_score', 5))
+            is_cons = item.get('is_consumable', False)
             
-            # 2. STATUS BRANDING (Green/Amber/Red)
-            if score <= 4:
-                status = "🔴 CRITICAL"
-            elif score <= 7:
-                status = "🟡 WATCH"
-            else:
-                status = "🟢 STABLE"
+            # Triage Branding
+            if s <= 4: status = "🔴 CRITICAL"
+            elif s <= 7: status = "🟡 WATCH"
+            else: status = "🟢 STABLE"
             
-            # 3. THE INTERACTIVE CARD (Expander)
-            # This creates the "Click to see more" behavior
-            with st.expander(f"{status} | {make} {model}"):
-                
-                # Financial Metrics Row
+            # THE DRILL-DOWN CARD
+            with st.expander(f"{status} | {item.get('manufacturer')} {item.get('model_number')}"):
                 c1, c2 = st.columns(2)
-                c1.metric("Current Value", val)
-                c2.metric("Repl. Cost", repl)
+                c1.metric("Current Value", item.get('estimated_value', '$--'))
+                c2.metric("Repl. Cost", item.get('estimated_replacement_cost', '$--'))
                 
                 st.divider()
-
-                # Lifecycle Math Section
-                st.write("#### ⏳ Lifecycle Audit")
-                try:
-                    # Logic assumes current year is 2026 as per project baseline
-                    birth = int(item.get('birth_year', 2020))
-                    life_span = int(item.get('avg_lifespan', 15))
-                    age = 2026 - birth
-                    remaining = max(0, life_span - age)
-                    # Progress bar percentage calculation
-                    pct = max(0.0, min(1.0, remaining / life_span))
-                except Exception:
-                    age, remaining, pct = "??", "??", 0.5
                 
-                st.progress(pct, text=f"Estimated Life: {remaining} Years Left")
+                # Dynamic Logic for Ledger Details
+                if is_cons:
+                    st.write(f"**Supply:** {s*10}% Remaining")
+                    st.progress(s/10.0)
+                else:
+                    age = 2026 - int(item.get('birth_year', 2020))
+                    life = int(item.get('avg_lifespan', 15))
+                    rem = max(0, life - age)
+                    st.write(f"**Service Life:** {rem} years left (Age: {age} yrs)")
+                    st.progress(max(0.0, min(1.0, rem / life)))
                 
-                # Meta-data metrics
-                m1, m2 = st.columns(2)
-                m1.caption(f"Asset Age: {age} yrs")
-                m2.caption(f"Expected Lifespan: {life_span} yrs")
+                # THE MONETIZATION ENGINE (Reorder Button)
+                reorder_url = item.get('reorder_link', 'https://www.google.com/search?q=' + item.get('model_number'))
+                st.link_button(f"🛒 Quick Reorder Replacement", reorder_url, use_container_width=True, type="primary")
+                
+                st.info(f"**Mischka's Take:** {item.get('replace_vs_repair', 'N/A')}")
 
-                # Advice & Insights
-                with st.container(border=True):
-                    st.write("#### 💡 Strategic Advice")
-                    st.info(f"**Decision:** {item.get('replace_vs_repair', 'N/A')}")
-                    st.warning(f"**Likely Fault:** {item.get('diagnostics', {}).get('primary_fault_prediction', 'N/A')}")
-                    st.success(f"**Modern Upgrade:** {item.get('modern_alternative', 'N/A')}")
-
-        # --- LEDGER MANAGEMENT ---
-        st.divider()
         if st.button("Purge Session Data", use_container_width=True):
             st.session_state.assets = []
-            st.session_state.current_asset = None
             st.rerun()
-            
     else:
-        st.info("Your ledger is currently empty. Head to the 'Scan' tab to audit your first asset.")
+        st.info("Your ledger is empty. Head to 'Scan Asset' to begin your home audit.")
 
-# --- FOOTER / APP STATUS ---
-st.sidebar.divider()
-st.sidebar.caption(f"FIGJAM Alpha | Mischka Protocol v2.1")
-st.sidebar.caption("Pillars: Rights, Money, Community")
-
+# --- SIDEBAR / FOOTER ---
+st.sidebar.
