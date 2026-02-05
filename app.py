@@ -176,78 +176,78 @@ with tab2:
     st.subheader("📋 Home Health Ledger")
     
     if st.session_state.assets:
-        # 1. Sort the assets so Red (Critical) always floats to the top
-        # This forces the user to confront the most 'at-risk' items first
+        # 1. SORTING LOGIC: Red (Critical) items jump to the top automatically
+        # Uses the health_score (1-10) to sort. Low scores come first.
         sorted_assets = sorted(st.session_state.assets, key=lambda x: x.get('health_score', 5))
         
-        st.write("Review your asset health below. Items are ranked by urgency.")
+        st.write("Your items are ranked by urgency. Tap an item for the full audit.")
         st.divider()
 
-       for item in sorted_assets:
-            score = item.get('health_score', 5)
+        for item in sorted_assets:
+            # Extract data with safety defaults to prevent crashes
+            score = int(item.get('health_score', 5))
+            make = item.get('manufacturer', 'Unknown')
+            model = item.get('model_number', 'Unknown')
+            val = item.get('estimated_value', '$--')
+            repl = item.get('estimated_replacement_cost', '$--')
             
-            # 1. Determine Status Branding
+            # 2. STATUS BRANDING (Green/Amber/Red)
             if score <= 4:
-                status, label_color = "🔴 CRITICAL", "red"
+                status = "🔴 CRITICAL"
             elif score <= 7:
-                status, label_color = "🟡 WATCH", "orange"
+                status = "🟡 WATCH"
             else:
-                status, label_color = "🟢 STABLE", "green"
+                status = "🟢 STABLE"
             
-            # 2. The Interactive Card (Expander)
-            with st.expander(f"{status} | {item.get('manufacturer')} {item.get('model_number')}"):
+            # 3. THE INTERACTIVE CARD (Expander)
+            # This creates the "Click to see more" behavior
+            with st.expander(f"{status} | {make} {model}"):
                 
-                # Top Row: The Financial Reality
+                # Financial Metrics Row
                 c1, c2 = st.columns(2)
-                c1.metric("Est. Value", item.get('estimated_value', '$--'))
-                c2.metric("Replacement", item.get('estimated_replacement_cost', '$--'))
+                c1.metric("Current Value", val)
+                c2.metric("Repl. Cost", repl)
                 
                 st.divider()
 
-                # Middle Row: The Life Clock
-                st.write("#### ⏳ Lifecycle Analysis")
-                age = 2026 - int(item.get('birth_year', 2020))
-                life = int(item.get('avg_lifespan', 15))
-                remaining = max(0, life - age)
+                # Lifecycle Math Section
+                st.write("#### ⏳ Lifecycle Audit")
+                try:
+                    # Logic assumes current year is 2026 as per project baseline
+                    birth = int(item.get('birth_year', 2020))
+                    life_span = int(item.get('avg_lifespan', 15))
+                    age = 2026 - birth
+                    remaining = max(0, life_span - age)
+                    # Progress bar percentage calculation
+                    pct = max(0.0, min(1.0, remaining / life_span))
+                except Exception:
+                    age, remaining, pct = "??", "??", 0.5
                 
-                st.progress(max(0.0, min(1.0, remaining / life)), text=f"{remaining} years of service left")
+                st.progress(pct, text=f"Estimated Life: {remaining} Years Left")
                 
-                col_a, col_b = st.columns(2)
-                col_a.write(f"**Age:** {age} years")
-                col_b.write(f"**Avg. Lifespan:** {life} years")
+                # Meta-data metrics
+                m1, m2 = st.columns(2)
+                m1.caption(f"Asset Age: {age} yrs")
+                m2.caption(f"Expected Lifespan: {life_span} yrs")
 
-                # Bottom Row: The "Mischka" Insight
+                # Advice & Insights
                 with st.container(border=True):
                     st.write("#### 💡 Strategic Advice")
-                    st.info(f"**Action:** {item.get('replace_vs_repair')}")
-                    st.warning(f"**Likely Fault:** {item.get('diagnostics', {}).get('primary_fault_prediction')}")
-                    st.success(f"**Modern Upgrade:** {item.get('modern_alternative')}")
-            
-            # 3. Draw the Status Card
-            with st.container(border=True):
-                c1, c2 = st.columns([2, 1])
-                c1.write(f"### {item.get('manufacturer')} {item.get('model_number')}")
-                c2.write(f"**{status}**")
-                
-                # Useful Life Progress Bar
-                age = 2026 - int(item.get('birth_year', 2020))
-                life = int(item.get('avg_lifespan', 15))
-                remaining = max(0, life - age)
-                
-                # Calculate the percentage of life remaining for the bar
-                life_pct = max(0.0, min(1.0, remaining / life))
-                
-                st.progress(life_pct, text=f"{remaining} years of estimated service remaining")
-                
-                # Mini-metrics for the card
-                m1, m2, m3 = st.columns(3)
-                m1.caption(f"Age: {age} yrs")
-                m2.caption(f"Total Life: {life} yrs")
-                m3.caption(f"Score: {score}/10")
+                    st.info(f"**Decision:** {item.get('replace_vs_repair', 'N/A')}")
+                    st.warning(f"**Likely Fault:** {item.get('diagnostics', {}).get('primary_fault_prediction', 'N/A')}")
+                    st.success(f"**Modern Upgrade:** {item.get('modern_alternative', 'N/A')}")
 
-        if st.button("Clear Session Ledger", use_container_width=True):
+        # --- LEDGER MANAGEMENT ---
+        st.divider()
+        if st.button("Purge Session Data", use_container_width=True):
             st.session_state.assets = []
             st.session_state.current_asset = None
             st.rerun()
+            
     else:
-        st.info("Your ledger is currently empty. Head over to the 'Scan' tab to audit your first appliance.")
+        st.info("Your ledger is currently empty. Head to the 'Scan' tab to audit your first asset.")
+
+# --- FOOTER / APP STATUS ---
+st.sidebar.divider()
+st.sidebar.caption(f"FIGJAM Alpha | Mischka Protocol v2.1")
+st.sidebar.caption("Pillars: Rights, Money, Community")
