@@ -106,14 +106,4 @@ elif st.session_state.page == "ledger":
         # Sort by urgency
         sorted_assets = sorted(st.session_state.assets, key=lambda x: int(x.get('health_score', 5)))
         
-        for i, item in enumerate(sorted_assets):
-            score = int(item.get('health_score', 5))
-            icon = "🔴" if score <= 4 else ("🟡" if score <= 7 else "🟢")
-            
-            with st.expander(f"{icon} {item.get('manufacturer')} {item.get('model_number')}"):
-                # The "Gauge" Logic
-                if item.get('is_consumable'):
-                    st.progress(score/10.0, text=f"Supply: {score*10}%")
-                else:
-                    age = 2026 - int(item.get('birth_year', 2020))
-                    rem = max(0, int
+        for i, item in enumerate(
