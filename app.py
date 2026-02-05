@@ -58,24 +58,54 @@ def encode_image(image_file):
     return base64.b64encode(image_file.getvalue()).decode('utf-8')
 
 def analyze_image(img_file):
-    # Your OpenAI setup should already be here, just update the prompt and return
     client = OpenAI(api_key=st.secrets["MY_NEW_KEY"]) 
     
+    # Convert image to base64 for the model
+    base64_image = base64.b64encode(img_file.getvalue()).decode('utf-8')
+
     prompt = """
-    Identify the appliance in this image. You MUST return a JSON object with these keys:
+    Identify the item in this image. You MUST return a JSON object with these EXACT keys:
     {
       "manufacturer": "Brand",
       "model_number": "Model String",
-      "birth_year": 2018, 
+      "is_consumable": true,
+      "health_score": 7, 
+      "birth_year": 2020,
       "avg_lifespan": 15,
-      "health_score": 7,
-      "replace_vs_repair": "Detailed recommendation based on age vs typical life",
-      "modern_alternative": "A current efficient model name",
-      "maintenance_alert": "One pro-tip for this specific unit"
+      "estimated_value": "$500",
+      "estimated_replacement_cost": "$1200",
+      "replace_vs_repair": "Recommendation based on age and condition",
+      "modern_alternative": "Name of replacement or upgrade",
+      "reorder_link": "https://www.google.com/search?q=replacement+part+model",
+      "diagnostics": {
+          "primary_fault_prediction": "Likely mechanical failure or end of life",
+          "diy_fix_steps": "Step 1: ... Step 2: ..."
+      }
     }
-    Note: If the exact birth year isn't visible, estimate it based on the design era.
+    
+    CRITICAL INSTRUCTIONS:
+    1. If the item is a filter, battery, or supply, set 'is_consumable' to true.
+    2. 'health_score' is 1-10. For consumables, it represents % of life left (e.g., 7 = 70%).
+    3. For consumables, 'avg_lifespan' should be in MONTHS, not years.
+    4. Provide a direct search link in 'reorder_link' for the specific part.
     """
 
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                ],
+            }
+        ],
+        response_format={"type": "json_object"}
+    )
+    
+    # Parse and return the JSON
+    return json.loads(response.choices[0].message.content)
     # Assuming you are using the vision model logic:
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -236,4 +266,7 @@ with tab2:
         st.info("Your ledger is empty. Head to 'Scan Asset' to begin your home audit.")
 
 # --- SIDEBAR / FOOTER ---
-st.sidebar.
+st.sidebar.divider()
+st.sidebar.caption("FIGJAM Alpha | Mischka Protocol v2.5")
+st.sidebar.caption("Prioritizing Home Equity through Data.")
+
