@@ -1,31 +1,55 @@
 import streamlit as st
-import pandas as pd
 import base64
 import json
 from openai import OpenAI
 
-# --- 1. SETTINGS & INITIALIZATION ---
-st.set_page_config(page_title="Reclaim | FIGJAM", page_icon="🏠", layout="centered")
+# --- 1. APP CONFIG & "THUMB-FRIENDLY" CSS ---
+st.set_page_config(page_title="FIGJAM", page_icon="🏠", layout="centered")
 
-# Ensure all session state keys exist
-if 'assets' not in st.session_state: st.session_state.assets = []
-if 'current_asset' not in st.session_state: st.session_state.current_asset = None
-if 'chat_mode' not in st.session_state: st.session_state.chat_mode = False
-if 'messages' not in st.session_state: st.session_state.messages = []
+st.markdown("""
+    <style>
+    /* Make buttons massive and tap-friendly */
+    div.stButton > button { 
+        width: 100%; 
+        height: 80px; 
+        font-size: 24px !important; 
+        font-weight: 600;
+        border-radius: 20px; 
+        margin-bottom: 16px; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    /* Clean up the metrics to look like dashboard tiles */
+    .stMetric { 
+        background-color: #f7f9fc; 
+        border: 1px solid #e1e4e8; 
+        padding: 20px; 
+        border-radius: 15px; 
+        text-align: center;
+    }
+    /* Hide the default hamburger menu for a cleaner look */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- 2. THE BRAIN (AI ANALYZER & CHAT) ---
+# State Management
+for key in ['assets', 'page', 'chat_history', 'current_asset']:
+    if key not in st.session_state:
+        st.session_state[key] = [] if key in ['assets', 'chat_history'] else ("home" if key == 'page' else None)
+
 client = OpenAI(api_key=st.secrets["MY_NEW_KEY"])
 
-def analyze_image(img_file):
+# --- 2. THE BRAIN ---
+def analyze_universal(img_file):
     base64_image = base64.b64encode(img_file.getvalue()).decode('utf-8')
     prompt = """
-    Identify the home asset. Return JSON with:
+    Analyze image (Appliance, Vehicle, or Consumable). Return JSON:
     {
-      "manufacturer": "Brand", "model_number": "Model", "is_consumable": bool,
-      "health_score": 1-10, "birth_year": 2020, "avg_lifespan": 15,
-      "estimated_value": "$500", "estimated_replacement_cost": "$1200",
-      "replace_vs_repair": "Advice", "modern_alternative": "Model",
-      "reorder_link": "URL",
+      "manufacturer": "Brand", "model_number": "Model", 
+      "is_consumable": bool, "health_score": 1-10, 
+      "birth_year": 2020, "avg_lifespan": 15,
+      "estimated_value": "$500",
+      "replace_vs_repair": "Strategy", "reorder_link": "URL",
       "diagnostics": {"primary_fault_prediction": "Fault", "diy_fix_steps": "Steps"}
     }
     """
@@ -36,84 +60,60 @@ def analyze_image(img_file):
     )
     return json.loads(response.choices[0].message.content)
 
-# --- 3. THE SIDEBAR ---
-with st.sidebar:
+# --- 3. PAGE: HOME (THE MENU) ---
+if st.session_state.page == "home":
     st.title("🏠 FIGJAM")
-    input_method = st.radio("Input Source:", ["Camera", "Upload"], horizontal=True)
-    img_file = st.camera_input("Scan Label") if input_method == "Camera" else st.file_uploader("Upload Image", type=['jpg', 'png', 'jpeg'])
-
-    if img_file:
-        with st.spinner("Analyzing..."):
-            st.session_state.current_asset = analyze_image(img_file)
-            st.session_state.chat_mode = False # Reset chat for new scan
-
-    st.divider()
-    if st.button("🗑️ Reset Ledger", use_container_width=True):
-        st.session_state.assets = []
-        st.session_state.current_asset = None
-        st.session_state.messages = []
-        st.rerun()
-
-# --- 4. MAIN UI: DIAGNOSTIC CHAT MODE ---
-if st.session_state.chat_mode and st.session_state.current_asset:
-    asset = st.session_state.current_asset
-    st.header(f"🔧 Troubleshooting: {asset.get('manufacturer')}")
     
-    if st.button("⬅️ Back to Ledger"):
-        st.session_state.chat_mode = False
-        st.rerun()
+    # BIG BUTTON 1: The "Audit" (Home Buying / Inventory)
+    if st.button("📸 SCAN ASSET"):
+        st.session_state.page = "scan"; st.rerun()
+        
+    # BIG BUTTON 2: The "Emergency" (Ad Hoc Fix)
+    if st.button("🆘 AD HOC FIX"):
+        st.session_state.current_asset = {"manufacturer": "Quick", "model_number": "Fix"}
+        st.session_state.chat_history = [{"role": "assistant", "content": "Mischka here. I'm listening. What's broken?"}]
+        st.session_state.page = "diagnose"; st.rerun()
 
-    # Display Chat History
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # BIG BUTTON 3: The "Equity" (View Ledger)
+    if st.button("📋 MY LEDGER"):
+        st.session_state.page = "ledger"; st.rerun()
 
-    # Chat Input
-    if prompt := st.chat_input(f"Ask Mischka about your {asset.get('model_number')}..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # The "Scoreboard"
+    if st.session_state.assets:
+        val = sum([int(str(a.get('estimated_value', '0')).replace('$','').replace(',','')) for a in st.session_state.assets])
+        st.metric("Total Asset Value", f"${val:,}")
 
-        with st.chat_message("assistant"):
-            # Inject context so the AI knows exactly what we are looking at
-            context = f"You are Mischka, a master mechanic. We are looking at a {asset.get('manufacturer')} {asset.get('model_number')}. The predicted fault is {asset.get('diagnostics', {}).get('primary_fault_prediction')}."
-            full_history = [{"role": "system", "content": context}] + st.session_state.messages
-            
-            response = client.chat.completions.create(model="gpt-4o", messages=full_history)
-            answer = response.choices[0].message.content
-            st.markdown(answer)
-            st.session_state.messages.append({"role": "assistant", "content": answer})
+# --- 4. PAGE: SCAN (AUTO-SAVE) ---
+elif st.session_state.page == "scan":
+    if st.button("❌ CANCEL"): st.session_state.page = "home"; st.rerun()
+    
+    img = st.camera_input("Point at Label")
+    if img:
+        with st.spinner("Identifying..."):
+            asset = analyze_universal(img)
+            st.session_state.assets.append(asset) # Auto-save
+            st.toast("Saved to Ledger!", icon="✅")
+            st.session_state.page = "ledger"; st.rerun()
 
-# --- 5. MAIN UI: SCAN REVIEW & LEDGER ---
-else:
-    if st.session_state.current_asset:
-        asset = st.session_state.current_asset
-        with st.container(border=True):
-            st.subheader(f"Found: {asset.get('manufacturer')} {asset.get('model_number')}")
-            c1, c2 = st.columns(2)
-            if c1.button("📥 Add to Ledger", use_container_width=True, type="primary"):
-                st.session_state.assets.append(asset)
-                st.session_state.current_asset = None
-                st.rerun()
-            if c2.button("🔧 Diagnose", use_container_width=True):
-                # Initialize chat with the AI's first thought
-                st.session_state.messages = [{"role": "assistant", "content": f"I've analyzed your {asset.get('manufacturer')}. It looks like a potential {asset.get('diagnostics', {}).get('primary_fault_prediction')}. How can I help you fix it?"}]
-                st.session_state.chat_mode = True
-                st.rerun()
-
-    st.header("📋 Home Health Ledger")
+# --- 5. PAGE: LEDGER (THE DASHBOARD) ---
+elif st.session_state.page == "ledger":
+    if st.button("🏠 HOME"): st.session_state.page = "home"; st.rerun()
+    st.subheader("Your Assets")
+    
     if not st.session_state.assets:
-        st.info("No assets tracked. Scan a label to begin.")
+        st.info("Ledger empty.")
     else:
-        # Triage Display
+        # Sort by urgency
         sorted_assets = sorted(st.session_state.assets, key=lambda x: int(x.get('health_score', 5)))
-        for item in sorted_assets:
+        
+        for i, item in enumerate(sorted_assets):
             score = int(item.get('health_score', 5))
             icon = "🔴" if score <= 4 else ("🟡" if score <= 7 else "🟢")
+            
             with st.expander(f"{icon} {item.get('manufacturer')} {item.get('model_number')}"):
-                st.write(f"**Strategy:** {item.get('replace_vs_repair')}")
-                if st.button(f"Diagnose {item.get('model_number')}", key=item.get('model_number')):
-                    st.session_state.current_asset = item
-                    st.session_state.messages = [{"role": "assistant", "content": f"Opening diagnostic records for your {item.get('manufacturer')}. What's happening with it?"}]
-                    st.session_state.chat_mode = True
-                    st.rerun()
+                # The "Gauge" Logic
+                if item.get('is_consumable'):
+                    st.progress(score/10.0, text=f"Supply: {score*10}%")
+                else:
+                    age = 2026 - int(item.get('birth_year', 2020))
+                    rem = max(0, int
